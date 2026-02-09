@@ -44,10 +44,12 @@ The design uses a specific, soothing color palette:
 2.  Open the folder `MERN-Project`.
 3.  Double-click `index.html` to open it in your web browser.
 4.  Start planning! No server or installation required.
+5.  You can also directly run it using the -> [Website](https://smartstudyplanner202.netlify.app/)
 
 ## 👤 Author
 
 **Udit** - *Developer*
 
 ---
+
 
