@@ -50,4 +50,4 @@ The design uses a specific, soothing color palette:
 **Udit** - *Developer*
 
 ---
-*Created for a Web Development Project.*
+
