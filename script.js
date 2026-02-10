@@ -4,6 +4,11 @@ let tasks = [];
 let schedule = []; // New schedule array
 let isDarkTheme = false;
 
+// Chart Instances
+let completionChartInstance = null;
+let subjectChartInstance = null;
+let weeklyChartInstance = null;
+
 // DOM 
 //Saare constant values yaha store honge
 const subjectListEl = document.getElementById('subjects-list');
@@ -58,6 +63,23 @@ function saveData() {
 }
 //agar reset dabayenge to reload kardenge
 
+function exportData() {
+    const data = {
+        subjects: subjects,
+        tasks: tasks,
+        schedule: schedule,
+        isDarkTheme: isDarkTheme
+    };
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "study_planner_data.json");
+    document.body.appendChild(downloadAnchorNode); // required for firefox
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+}
+
 function resetData() {
     if (confirm("Are you sure you want to delete all data?")) {
         localStorage.clear();
@@ -70,7 +92,7 @@ function resetData() {
     }
 }
 
-//theme change button
+//theme change ka button
 
 function toggleTheme() {
     isDarkTheme = !isDarkTheme;
@@ -102,6 +124,10 @@ function showSection(sectionId) {
     const activeLink = document.getElementById('nav-' + sectionId);
     if (activeLink) {
         activeLink.classList.add('active');
+    }
+
+    if (sectionId === 'analytics') {
+        updateAnalytics();
     }
 }
 
@@ -356,4 +382,173 @@ function goToAddSchedule() {
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const currentDayName = days[new Date().getDay()];
     scheduleDaySelect.value = currentDayName;
+}
+
+// Analytics Logic
+function updateAnalytics() {
+    // 1. Completion Chart Data
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter(t => t.completed).length;
+    const pendingTasks = totalTasks - completedTasks;
+
+    // 2. Subject Chart Data
+    const subjectCounts = {};
+    if (subjects.length === 0 && tasks.length > 0) {
+        // Fallback if subjects empty but tasks exist
+        tasks.forEach(t => {
+            if (!subjectCounts[t.subject]) subjectCounts[t.subject] = 0;
+        });
+    } else {
+        subjects.forEach(sub => subjectCounts[sub] = 0);
+    }
+
+    tasks.forEach(task => {
+        if (subjectCounts.hasOwnProperty(task.subject)) {
+            subjectCounts[task.subject]++;
+        } else {
+            // Handle cases where task subject might not be in subjects list anymore
+            subjectCounts[task.subject] = (subjectCounts[task.subject] || 0) + 1;
+        }
+    });
+
+    // 3. Weekly Activity Data (Next 7 Days)
+    const next7Days = [];
+    const dates = [];
+    const dateCounts = [];
+
+    for (let i = 0; i < 7; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() + i);
+        const dateStr = d.toISOString().split('T')[0];
+        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+
+        next7Days.push(dateStr);
+        dates.push(dayName);
+
+        const count = tasks.filter(t => t.date === dateStr).length;
+        dateCounts.push(count);
+    }
+
+    // Colors
+    const chartColors = [
+        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40',
+        '#8AC926', '#1982C4', '#6A4C93'
+    ];
+
+    // Render Charts
+    renderCompletionChart(completedTasks, pendingTasks);
+    renderSubjectChart(subjectCounts, chartColors);
+    renderWeeklyChart(dates, dateCounts);
+}
+
+function renderCompletionChart(completed, pending) {
+    const ctx = document.getElementById('completionChart').getContext('2d');
+
+    if (completionChartInstance) {
+        completionChartInstance.destroy();
+    }
+
+    // Handle case where no tasks exist to show empty state or just 0s
+    const data = (completed === 0 && pending === 0) ? [0, 0] : [completed, pending];
+    const bgColors = (completed === 0 && pending === 0) ? ['#e0e0e0', '#e0e0e0'] : ['#4BC0C0', '#FF6384'];
+
+    completionChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Completed', 'Pending'],
+            datasets: [{
+                data: data,
+                backgroundColor: bgColors,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+function renderSubjectChart(subjectCounts, colors) {
+    const ctx = document.getElementById('subjectChart').getContext('2d');
+    const labels = Object.keys(subjectCounts);
+    const data = Object.values(subjectCounts);
+
+    if (subjectChartInstance) {
+        subjectChartInstance.destroy();
+    }
+
+    subjectChartInstance = new Chart(ctx, {
+        type: 'polarArea',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                r: {
+                    ticks: { display: false }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+function renderWeeklyChart(dates, counts) {
+    const ctx = document.getElementById('weeklyChart').getContext('2d');
+
+    if (weeklyChartInstance) {
+        weeklyChartInstance.destroy();
+    }
+
+    weeklyChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: dates,
+            datasets: [{
+                label: 'Tasks Due',
+                data: counts,
+                backgroundColor: '#36A2EB',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1,
+                        precision: 0
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                title: {
+                    display: true,
+                    text: 'Tasks Due (Next 7 Days)'
+                }
+            }
+        }
+    });
 }
